@@ -1,1 +1,8 @@
-{}
+[
+  {
+    "name": "BBC News",
+    "rss": "https://feeds.bbci.co.uk/news/rss.xml",
+    "category": "International",
+    "language": "en"
+  }
+]
