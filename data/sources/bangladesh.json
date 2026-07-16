@@ -1,1 +1,8 @@
-{}
+[
+  {
+    "name": "BBC Bangla",
+    "rss": "https://feeds.bbci.co.uk/bengali/rss.xml",
+    "category": "Bangladesh",
+    "language": "bn"
+  }
+]
