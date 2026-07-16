@@ -1,1 +1,8 @@
-{}
+[
+  {
+    "name": "BBC Sport",
+    "rss": "https://feeds.bbci.co.uk/sport/rss.xml",
+    "category": "Sports",
+    "language": "en"
+  }
+]
