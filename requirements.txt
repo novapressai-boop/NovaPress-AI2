@@ -1,1 +1,5 @@
-# NovaPress AI Requirements
+feedparser
+requests
+beautifulsoup4
+lxml
+python-dateutil
