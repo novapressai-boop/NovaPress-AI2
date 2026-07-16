@@ -1,1 +1,8 @@
-{}
+[
+  {
+    "name": "TechCrunch",
+    "rss": "https://techcrunch.com/feed/",
+    "category": "Technology",
+    "language": "en"
+  }
+]
