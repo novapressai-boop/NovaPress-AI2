@@ -1,4 +1,4 @@
-from collector import collect_news
+from agents.collector import collect_news
 
 def main():
     print("=" * 50)
