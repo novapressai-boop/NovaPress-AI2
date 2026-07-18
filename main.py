@@ -5,9 +5,7 @@ def main():
     print("NovaPress AI - News Hunter")
     print("=" * 50)
 
-    news = collect_news()
-
-    print(f"\nTotal News Collected: {len(news)}")
+    collect_news()
 
 if __name__ == "__main__":
     main()
