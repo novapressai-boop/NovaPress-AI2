@@ -1,12 +1,19 @@
 """
-NovaPress AI Configuration
+NovaPress AI
+Configuration
+Version: 2.0
 """
 
-OUTPUT_DIR = "data/output"
-OUTPUT_FILE = "data/output/news_output.json"
+import os
 
-MAX_NEWS = 100
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-USER_AGENT = "NovaPress AI/1.0"
+DATA_DIR = os.path.join(BASE_DIR, "data")
+SOURCE_DIR = os.path.join(DATA_DIR, "sources")
+OUTPUT_DIR = os.path.join(DATA_DIR, "output")
 
-TIMEOUT = 30
+NEWS_OUTPUT_FILE = os.path.join(OUTPUT_DIR, "news_output.json")
+
+MAX_NEWS_PER_SOURCE = 5
+
+USER_AGENT = "NovaPressAI/2.0"
