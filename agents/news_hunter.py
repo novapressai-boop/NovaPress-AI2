@@ -1,0 +1,1 @@
+# NovaPress AI - News Hunter Module
