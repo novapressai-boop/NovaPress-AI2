@@ -1,29 +1,193 @@
-"""
-NovaPress AI - News Collector
-Version: 1.0
-"""
-
+import os
 import json
+import hashlib
+from datetime import datetime
+
 import feedparser
+from bs4 import BeautifulSoup
 
-SOURCE_FILE = "data/sources/bangladesh.json"
 
-def load_sources():
-    with open(SOURCE_FILE, "r", encoding="utf-8") as file:
-        return json.load(file)
+class NewsCollector:
+    def __init__(self):
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
 
-def collect_news():
-    sources = load_sources()
+        # data/sources/
+        self.sources_dir = os.path.join(
+            self.base_dir,
+            "data",
+            "sources"
+        )
 
-    for source in sources:
-        print(f"Collecting news from: {source['name']}")
+        # data/output/
+        self.output_dir = os.path.join(
+            self.base_dir,
+            "data",
+            "output"
+        )
 
-        feed = feedparser.parse(source["rss"])
+        os.makedirs(self.output_dir, exist_ok=True)
 
-        for news in feed.entries[:5]:
-            print("-" * 50)
-            print("Title :", news.title)
-            print("Link  :", news.link)
+        self.output_file = os.path.join(
+            self.output_dir,
+            "news_output.json"
+        )
+
+        self.news = []
+        self.ids = set()
+
+
+    def make_id(self, text):
+        return hashlib.md5(
+            text.encode("utf-8")
+        ).hexdigest()
+
+
+    def load_all_sources(self):
+        sources = []
+
+        if not os.path.exists(self.sources_dir):
+            raise FileNotFoundError(
+                f"Sources folder not found: {self.sources_dir}"
+            )
+
+        for file in os.listdir(self.sources_dir):
+            if file.endswith(".json"):
+
+                file_path = os.path.join(
+                    self.sources_dir,
+                    file
+                )
+
+                with open(
+                    file_path,
+                    "r",
+                    encoding="utf-8"
+                ) as f:
+                    try:
+                        data = json.load(f)
+
+                        if isinstance(data, list):
+                            sources.extend(data)
+
+                    except Exception as e:
+                        print(f"Error reading {file}: {e}")
+
+        return sources
+    def add_news(self, item):
+        uid = self.make_id(
+            item["title"] + item["link"]
+        )
+
+        if uid in self.ids:
+            return
+
+        self.ids.add(uid)
+        item["id"] = uid
+        self.news.append(item)
+
+
+    def collect_rss(self):
+        sources = self.load_all_sources()
+
+        print(f"Loaded {len(sources)} sources.\n")
+
+        for source in sources:
+
+            try:
+                print(f"Collecting: {source['name']}")
+
+                feed = feedparser.parse(
+                    source["rss"]
+                )
+
+                for entry in feed.entries:
+
+                    title = entry.get(
+                        "title",
+                        ""
+                    ).strip()
+
+                    link = entry.get(
+                        "link",
+                        ""
+                    ).strip()
+
+                    summary = BeautifulSoup(
+                        entry.get(
+                            "summary",
+                            ""
+                        ),
+                        "html.parser"
+                    ).get_text(
+                        " ",
+                        strip=True
+                    )
+
+                    news = {
+                        "source": source.get(
+                            "name",
+                            "Unknown"
+                        ),
+                        "category": source.get(
+                            "category",
+                            "General"
+                        ),
+                        "language": source.get(
+                            "language",
+                            "en"
+                        ),
+                        "title": title,
+                        "link": link,
+                        "summary": summary,
+                        "published": entry.get(
+                            "published",
+                            ""
+                        ),
+                        "collected_at": datetime.utcnow().isoformat()
+                    }
+
+                    if title and link:
+                        self.add_news(news)
+
+            except Exception as e:
+                print(
+                    f"Error collecting {source['name']} : {e}"
+                )
+    def save_news(self):
+        self.news.sort(
+            key=lambda x: x.get("published", ""),
+            reverse=True
+        )
+
+        with open(
+            self.output_file,
+            "w",
+            encoding="utf-8"
+        ) as f:
+            json.dump(
+                self.news,
+                f,
+                ensure_ascii=False,
+                indent=4
+            )
+
+        print("\n===================================")
+        print(f"Total News : {len(self.news)}")
+        print(f"Saved File : {self.output_file}")
+        print("===================================\n")
+
+
+    def run(self):
+        print("===================================")
+        print("NovaPress AI News Collector")
+        print("===================================\n")
+
+        self.collect_rss()
+        self.save_news()
+
+        print("News collection completed successfully.")
+
 
 if __name__ == "__main__":
-    collect_news()
+    collector = NewsCollector()
+    collector.run()
