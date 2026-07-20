@@ -6,7 +6,7 @@ from datetime import datetime
 class NewsAnalyzer:
 
     def __init__(self):
-        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
         self.input_file = os.path.join(
             self.base_dir,
