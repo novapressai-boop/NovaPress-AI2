@@ -263,7 +263,60 @@ def build_article(news):
 
         "status": "ready_for_publish"
 
-    # ---------------------------------
+    }
+# ---------------------------------
+# Process All Approved News
+# ---------------------------------
+def process_articles():
+
+    news_list = load_news()
+
+    if not news_list:
+
+        print("No approved news found.")
+
+        return []
+
+    articles = []
+
+    success = 0
+
+    failed = 0
+
+    total = len(news_list)
+
+    print(f"\nProcessing {total} approved news...\n")
+
+    for index, news in enumerate(news_list, start=1):
+
+        print(f"[{index}/{total}] {news.get('title', '')}")
+
+        article = build_article(news)
+
+        if article:
+
+            articles.append(article)
+
+            success += 1
+
+            print("✓ Success")
+
+        else:
+
+            failed += 1
+
+            print("✗ Failed")
+
+    print("\n========== Writer Report ==========")
+
+    print(f"Total News      : {total}")
+
+    print(f"Articles Created: {success}")
+
+    print(f"Failed          : {failed}")
+
+    return articles
+# ---------------------------------
 # Main
 # ---------------------------------
 def main():
