@@ -33,13 +33,20 @@ def load_keywords():
 
             category = file.stem.lower()
 
+            if not isinstance(data, list):
+                print(f"Invalid keyword format: {file.name}")
+                continue
+
             keyword_db[category] = [
                 str(k).strip().lower()
                 for k in data
-                if isinstance(k, str)
+                if isinstance(k, str) and k.strip()
             ]
 
-            print(f"Loaded {category}: {len(keyword_db[category])} keywords")
+            print(
+                f"Loaded {category}: "
+                f"{len(keyword_db[category])} keywords"
+            )
 
         except Exception as e:
             print(f"Error loading {file.name}: {e}")
@@ -55,15 +62,19 @@ def clean_text(text):
     if not text:
         return ""
 
-    text = text.lower()
+    text = str(text).lower()
 
+    # Remove HTML tags
     text = re.sub(r"<.*?>", " ", text)
 
-    text = re.sub(r"http\\S+", " ", text)
+    # Remove URLs
+    text = re.sub(r"http\S+", " ", text)
 
-    text = re.sub(r"[^\\w\\s]", " ", text)
+    # Keep letters, numbers, Bangla characters and spaces
+    text = re.sub(r"[^\w\s]", " ", text)
 
-    text = re.sub(r"\\s+", " ", text)
+    # Remove extra spaces
+    text = re.sub(r"\s+", " ", text)
 
     return text.strip()
 
@@ -74,10 +85,14 @@ def clean_text(text):
 def match_keywords(text, keywords):
 
     score = 0
-
     found = []
 
     for keyword in keywords:
+
+        keyword = keyword.strip().lower()
+
+        if not keyword:
+            continue
 
         if keyword in text:
 
@@ -88,48 +103,59 @@ def match_keywords(text, keywords):
     return score, found
 
 
+# -----------------------------
+# Load Keywords
+# -----------------------------
 KEYWORDS = load_keywords()
+
+
 # -----------------------------
 # Analyze Single News
 # -----------------------------
 def analyze_news(news):
 
     title = clean_text(news.get("title", ""))
-
     summary = clean_text(news.get("summary", ""))
-
     content = clean_text(news.get("content", ""))
 
-    full_text = f"{title} {summary} {content}"
+    full_text = f"{title} {summary} {content}".strip()
 
     category_scores = {}
-
     matched_keywords = {}
 
     total_score = 0
 
+    # -----------------------------
+    # Check Every Category
+    # -----------------------------
     for category, keywords in KEYWORDS.items():
 
-        score, found = match_keywords(full_text, keywords)
+        score, found = match_keywords(
+            full_text,
+            keywords
+        )
 
         category_scores[category] = score
-
         matched_keywords[category] = found
 
         total_score += score
 
+    # -----------------------------
+    # Find Best Category
+    # -----------------------------
     if category_scores:
 
-        best_category = max(category_scores, key=category_scores.get)
+        best_category = max(
+            category_scores,
+            key=category_scores.get
+        )
 
         best_score = category_scores[best_category]
 
     else:
 
         best_category = "unknown"
-
         best_score = 0
-
 
     # -----------------------------
     # Priority
@@ -146,13 +172,14 @@ def analyze_news(news):
 
         priority = "LOW"
 
-
     # -----------------------------
     # Approval
     # -----------------------------
     approved = total_score >= 20
 
-
+    # -----------------------------
+    # Final Result
+    # -----------------------------
     analyzed = {
 
         "title": news.get("title", ""),
@@ -177,56 +204,105 @@ def analyze_news(news):
 
         "approved": approved,
 
-        "matched_keywords": matched_keywords[best_category]
-
+        "matched_keywords": matched_keywords.get(
+            best_category,
+            []
+        )
     }
 
     return analyzed
+
+
 # -----------------------------
 # Analyze All News
 # -----------------------------
 def analyze_all_news():
 
     if not INPUT_FILE.exists():
-        print("Input file not found:", INPUT_FILE)
+
+        print(
+            "Input file not found:",
+            INPUT_FILE
+        )
+
         return
 
     try:
-        with open(INPUT_FILE, "r", encoding="utf-8") as f:
+
+        with open(
+            INPUT_FILE,
+            "r",
+            encoding="utf-8"
+        ) as f:
+
             news_list = json.load(f)
 
     except Exception as e:
-        print("Error reading input:", e)
+
+        print(
+            "Error reading input:",
+            e
+        )
+
         return
 
+    # -----------------------------
+    # Validate News Data
+    # -----------------------------
     if not isinstance(news_list, list):
+
         print("Invalid news format.")
+
         return
 
     analyzed_news = []
 
     approved_count = 0
-
     rejected_count = 0
 
     category_counter = Counter()
 
+    # -----------------------------
+    # Analyze Each News
+    # -----------------------------
     for news in news_list:
+
+        if not isinstance(news, dict):
+            continue
 
         result = analyze_news(news)
 
         analyzed_news.append(result)
 
-        category_counter[result["category"]] += 1
+        category_counter[
+            result["category"]
+        ] += 1
 
         if result["approved"]:
+
             approved_count += 1
+
         else:
+
             rejected_count += 1
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    # -----------------------------
+    # Create Output Folder
+    # -----------------------------
+    OUTPUT_DIR.mkdir(
+        parents=True,
+        exist_ok=True
+    )
 
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+    # -----------------------------
+    # Save Analyzed News
+    # -----------------------------
+    with open(
+        OUTPUT_FILE,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
         json.dump(
             analyzed_news,
             f,
@@ -234,20 +310,43 @@ def analyze_all_news():
             indent=4
         )
 
-    print("\n========== Analyzer Report ==========")
-    print(f"Total News      : {len(analyzed_news)}")
-    print(f"Approved News   : {approved_count}")
-    print(f"Rejected News   : {rejected_count}")
+    # -----------------------------
+    # Analyzer Report
+    # -----------------------------
+    print(
+        "\n========== Analyzer Report =========="
+    )
 
-    print("\nCategory Summary")
+    print(
+        f"Total News      : {len(analyzed_news)}"
+    )
+
+    print(
+        f"Approved News   : {approved_count}"
+    )
+
+    print(
+        f"Rejected News   : {rejected_count}"
+    )
+
+    print(
+        "\nCategory Summary"
+    )
+
     for category, count in category_counter.items():
-        print(f"- {category}: {count}")
 
-    print(f"\nSaved File: {OUTPUT_FILE}")
+        print(
+            f"- {category}: {count}"
+        )
+
+    print(
+        f"\nSaved File: {OUTPUT_FILE}"
+    )
 
 
 # -----------------------------
 # Main
 # -----------------------------
 if __name__ == "__main__":
+
     analyze_all_news()
