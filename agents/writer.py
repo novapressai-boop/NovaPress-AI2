@@ -2,12 +2,13 @@ import os
 import json
 from pathlib import Path
 
-import google.generativeai as genai
+from google import genai
 
 
-# ---------------------------------
+# =================================
 # Project Paths
-# ---------------------------------
+# =================================
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 OUTPUT_DIR = BASE_DIR / "data" / "output"
@@ -17,42 +18,56 @@ INPUT_FILE = OUTPUT_DIR / "analyzed_news.json"
 OUTPUT_FILE = OUTPUT_DIR / "articles.json"
 
 
-# ---------------------------------
+# =================================
 # Gemini API
-# ---------------------------------
-API_KEY = os.getenv("GEMINI_API_KEY", "")
+# =================================
+
+API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 
 if not API_KEY:
-    API_KEY = "YOUR_GEMINI_API_KEY"
+    raise RuntimeError(
+        "GEMINI_API_KEY is not set. "
+        "Please set the API key in Pydroid Terminal."
+    )
 
-genai.configure(api_key=API_KEY)
+client = genai.Client(api_key=API_KEY)
 
-MODEL = genai.GenerativeModel("gemini-2.5-flash")
+MODEL = "gemini-2.5-flash"
 
 
-# ---------------------------------
+# =================================
 # Load Approved News
-# ---------------------------------
+# =================================
+
 def load_news():
 
     if not INPUT_FILE.exists():
 
-        print("Input file not found.")
+        print("Input file not found:")
+        print(INPUT_FILE)
 
         return []
 
-    with open(INPUT_FILE, "r", encoding="utf-8") as f:
+    try:
 
-        news = json.load(f)
+        with open(
+            INPUT_FILE,
+            "r",
+            encoding="utf-8"
+        ) as f:
+
+            news = json.load(f)
+
+    except Exception as e:
+
+        print(f"Error loading news: {e}")
+
+        return []
 
     approved = [
-
         item
-
         for item in news
-
         if item.get("approved") is True
-
     ]
 
     print(f"Approved News : {len(approved)}")
@@ -60,50 +75,63 @@ def load_news():
     return approved
 
 
-# ---------------------------------
+# =================================
 # Save Articles
-# ---------------------------------
+# =================================
+
 def save_articles(articles):
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    OUTPUT_DIR.mkdir(
+        parents=True,
+        exist_ok=True
+    )
 
     with open(
-
         OUTPUT_FILE,
-
         "w",
-
         encoding="utf-8"
-
     ) as f:
 
         json.dump(
-
             articles,
-
             f,
-
             ensure_ascii=False,
-
             indent=4
-
         )
 
     print("Articles saved.")
-# ---------------------------------
+
+
+# =================================
 # Build SEO Prompt
-# ---------------------------------
+# =================================
+
 def build_prompt(news):
 
-    category = news.get("category", "General")
+    category = news.get(
+        "category",
+        "General"
+    )
 
-    title = news.get("title", "")
+    title = news.get(
+        "title",
+        ""
+    )
 
-    summary = news.get("summary", "")
+    summary = news.get(
+        "summary",
+        ""
+    )
 
-    content = news.get("content", "")
+    content = news.get(
+        "content",
+        ""
+    )
 
-    source = news.get("source", "")
+    source = news.get(
+        "source",
+        ""
+    )
 
     prompt = f"""
 You are an expert SEO news writer.
@@ -131,19 +159,19 @@ Requirements:
 
 2. Create an SEO optimized title.
 
-3. Write a meta description (150-160 characters).
+3. Write a meta description between 150 and 160 characters.
 
 4. Write a complete article with:
 
 - Introduction
 - Main Details
-- Background (if relevant)
+- Background if relevant
 - Conclusion
 
 5. Article length:
 700-1000 words.
 
-6. Generate 10 SEO tags.
+6. Generate exactly 10 SEO tags.
 
 7. Create one realistic AI image prompt.
 
@@ -152,15 +180,22 @@ Requirements:
 JSON format:
 
 {{
-"title":"",
-"meta_description":"",
-"article":"",
-"tags":[
-"",
-"",
-""
-],
-"image_prompt":""
+    "title": "",
+    "meta_description": "",
+    "article": "",
+    "tags": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+    ],
+    "image_prompt": ""
 }}
 
 Do not add markdown.
@@ -173,18 +208,37 @@ Return JSON only.
     return prompt
 
 
-# ---------------------------------
+# =================================
 # Generate Article
-# ---------------------------------
+# =================================
+
 def generate_article(news):
 
     prompt = build_prompt(news)
 
     try:
 
-        response = MODEL.generate_content(prompt)
+        response = client.models.generate_content(
+            model=MODEL,
+            contents=prompt
+        )
 
         text = response.text.strip()
+
+        # Remove accidental markdown code fences
+        if text.startswith("```json"):
+
+            text = text[7:]
+
+        elif text.startswith("```"):
+
+            text = text[3:]
+
+        if text.endswith("```"):
+
+            text = text[:-3]
+
+        text = text.strip()
 
         return json.loads(text)
 
@@ -193,12 +247,16 @@ def generate_article(news):
         print(f"Generation Error: {e}")
 
         return None
-# ---------------------------------
+
+
+# =================================
 # Validate Generated Article
-# ---------------------------------
+# =================================
+
 def validate_article(article):
 
     if not article:
+
         return False
 
     required_fields = [
@@ -217,16 +275,22 @@ def validate_article(article):
 
             return False
 
-    if not isinstance(article["tags"], list):
+    if not isinstance(
+        article["tags"],
+        list
+    ):
+
+        print("Tags must be a list.")
 
         return False
 
     return True
 
 
-# ---------------------------------
+# =================================
 # Build Final Article
-# ---------------------------------
+# =================================
+
 def build_article(news):
 
     generated = generate_article(news)
@@ -239,34 +303,48 @@ def build_article(news):
 
         "title": generated["title"],
 
-        "meta_description": generated["meta_description"],
+        "meta_description":
+            generated["meta_description"],
 
-        "article": generated["article"],
+        "article":
+            generated["article"],
 
-        "tags": generated["tags"],
+        "tags":
+            generated["tags"],
 
-        "image_prompt": generated["image_prompt"],
+        "image_prompt":
+            generated["image_prompt"],
 
-        "category": news.get("category", ""),
+        "category":
+            news.get("category", ""),
 
-        "priority": news.get("priority", ""),
+        "priority":
+            news.get("priority", ""),
 
-        "score": news.get("total_score", 0),
+        "score":
+            news.get("total_score", 0),
 
-        "source": news.get("source", ""),
+        "source":
+            news.get("source", ""),
 
-        "link": news.get("link", ""),
+        "link":
+            news.get("link", ""),
 
-        "published": news.get("published", ""),
+        "published":
+            news.get("published", ""),
 
-        "created_by": "NovaPress AI",
+        "created_by":
+            "NovaPress AI",
 
-        "status": "ready_for_publish"
-
+        "status":
+            "ready_for_publish"
     }
-# ---------------------------------
+
+
+# =================================
 # Process All Approved News
-# ---------------------------------
+# =================================
+
 def process_articles():
 
     news_list = load_news()
@@ -285,11 +363,19 @@ def process_articles():
 
     total = len(news_list)
 
-    print(f"\nProcessing {total} approved news...\n")
+    print(
+        f"\nProcessing {total} approved news...\n"
+    )
 
-    for index, news in enumerate(news_list, start=1):
+    for index, news in enumerate(
+        news_list,
+        start=1
+    ):
 
-        print(f"[{index}/{total}] {news.get('title', '')}")
+        print(
+            f"[{index}/{total}] "
+            f"{news.get('title', '')}"
+        )
 
         article = build_article(news)
 
@@ -307,21 +393,34 @@ def process_articles():
 
             print("✗ Failed")
 
-    print("\n========== Writer Report ==========")
+    print(
+        "\n========== Writer Report =========="
+    )
 
-    print(f"Total News      : {total}")
+    print(
+        f"Total News      : {total}"
+    )
 
-    print(f"Articles Created: {success}")
+    print(
+        f"Articles Created: {success}"
+    )
 
-    print(f"Failed          : {failed}")
+    print(
+        f"Failed          : {failed}"
+    )
 
     return articles
-# ---------------------------------
+
+
+# =================================
 # Main
-# ---------------------------------
+# =================================
+
 def main():
 
-    print("\n========== NovaPress AI Writer ==========\n")
+    print(
+        "\n========== NovaPress AI Writer ==========\n"
+    )
 
     articles = process_articles()
 
@@ -333,18 +432,27 @@ def main():
 
     save_articles(articles)
 
-    print("\n========== Completed ==========")
+    print(
+        "\n========== Completed =========="
+    )
 
-    print(f"Articles Saved : {len(articles)}")
+    print(
+        f"Articles Saved : {len(articles)}"
+    )
 
-    print(f"Output File    : {OUTPUT_FILE}")
+    print(
+        f"Output File    : {OUTPUT_FILE}"
+    )
 
-    print("\nWriter finished successfully.")
+    print(
+        "\nWriter finished successfully."
+    )
 
 
-# ---------------------------------
+# =================================
 # Run
-# ---------------------------------
+# =================================
+
 if __name__ == "__main__":
 
     try:
@@ -353,8 +461,12 @@ if __name__ == "__main__":
 
     except KeyboardInterrupt:
 
-        print("\nWriter stopped by user.")
+        print(
+            "\nWriter stopped by user."
+        )
 
     except Exception as e:
 
-        print(f"\nUnexpected Error: {e}")
+        print(
+            f"\nUnexpected Error: {e}"
+        )
