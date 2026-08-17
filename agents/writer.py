@@ -5,9 +5,9 @@ from pathlib import Path
 from google import genai
 
 
-# =================================
+# ---------------------------------
 # Project Paths
-# =================================
+# ---------------------------------
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -18,43 +18,42 @@ INPUT_FILE = OUTPUT_DIR / "analyzed_news.json"
 OUTPUT_FILE = OUTPUT_DIR / "articles.json"
 
 
-# =================================
+# ---------------------------------
 # Gemini API
-# =================================
+# ---------------------------------
 
-API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+# ONLY put your API key here when testing locally in Pydroid.
+# DO NOT upload the real API key to GitHub.
 
-if not API_KEY:
+API_KEY = "YOUR_GEMINI_API_KEY"
+
+
+if not API_KEY or API_KEY == "YOUR_GEMINI_API_KEY":
     raise RuntimeError(
-        "GEMINI_API_KEY is not set. "
-        "Please set the API key in Pydroid Terminal."
+        "GEMINI_API_KEY is not set. Please add your Gemini API key."
     )
+
 
 client = genai.Client(api_key=API_KEY)
 
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-3.6-flash"
 
 
-# =================================
+# ---------------------------------
 # Load Approved News
-# =================================
+# ---------------------------------
 
 def load_news():
 
     if not INPUT_FILE.exists():
 
-        print("Input file not found:")
-        print(INPUT_FILE)
+        print("Input file not found:", INPUT_FILE)
 
         return []
 
     try:
 
-        with open(
-            INPUT_FILE,
-            "r",
-            encoding="utf-8"
-        ) as f:
+        with open(INPUT_FILE, "r", encoding="utf-8") as f:
 
             news = json.load(f)
 
@@ -65,9 +64,13 @@ def load_news():
         return []
 
     approved = [
+
         item
+
         for item in news
+
         if item.get("approved") is True
+
     ]
 
     print(f"Approved News : {len(approved)}")
@@ -75,16 +78,13 @@ def load_news():
     return approved
 
 
-# =================================
+# ---------------------------------
 # Save Articles
-# =================================
+# ---------------------------------
 
 def save_articles(articles):
 
-    OUTPUT_DIR.mkdir(
-        parents=True,
-        exist_ok=True
-    )
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     with open(
         OUTPUT_FILE,
@@ -102,36 +102,21 @@ def save_articles(articles):
     print("Articles saved.")
 
 
-# =================================
+# ---------------------------------
 # Build SEO Prompt
-# =================================
+# ---------------------------------
 
 def build_prompt(news):
 
-    category = news.get(
-        "category",
-        "General"
-    )
+    category = news.get("category", "General")
 
-    title = news.get(
-        "title",
-        ""
-    )
+    title = news.get("title", "")
 
-    summary = news.get(
-        "summary",
-        ""
-    )
+    summary = news.get("summary", "")
 
-    content = news.get(
-        "content",
-        ""
-    )
+    content = news.get("content", "")
 
-    source = news.get(
-        "source",
-        ""
-    )
+    source = news.get("source", "")
 
     prompt = f"""
 You are an expert SEO news writer.
@@ -159,13 +144,13 @@ Requirements:
 
 2. Create an SEO optimized title.
 
-3. Write a meta description between 150 and 160 characters.
+3. Write a meta description between 150-160 characters.
 
 4. Write a complete article with:
 
 - Introduction
 - Main Details
-- Background if relevant
+- Background (if relevant)
 - Conclusion
 
 5. Article length:
@@ -208,9 +193,9 @@ Return JSON only.
     return prompt
 
 
-# =================================
+# ---------------------------------
 # Generate Article
-# =================================
+# ---------------------------------
 
 def generate_article(news):
 
@@ -225,12 +210,12 @@ def generate_article(news):
 
         text = response.text.strip()
 
-        # Remove accidental markdown code fences
+        # Remove accidental markdown JSON fences
         if text.startswith("```json"):
 
             text = text[7:]
 
-        elif text.startswith("```"):
+        if text.startswith("```"):
 
             text = text[3:]
 
@@ -249,9 +234,9 @@ def generate_article(news):
         return None
 
 
-# =================================
+# ---------------------------------
 # Validate Generated Article
-# =================================
+# ---------------------------------
 
 def validate_article(article):
 
@@ -275,21 +260,24 @@ def validate_article(article):
 
             return False
 
-    if not isinstance(
-        article["tags"],
-        list
-    ):
+    if not isinstance(article["tags"], list):
 
         print("Tags must be a list.")
+
+        return False
+
+    if len(article["tags"]) != 10:
+
+        print("Article must contain exactly 10 tags.")
 
         return False
 
     return True
 
 
-# =================================
+# ---------------------------------
 # Build Final Article
-# =================================
+# ---------------------------------
 
 def build_article(news):
 
@@ -303,47 +291,36 @@ def build_article(news):
 
         "title": generated["title"],
 
-        "meta_description":
-            generated["meta_description"],
+        "meta_description": generated["meta_description"],
 
-        "article":
-            generated["article"],
+        "article": generated["article"],
 
-        "tags":
-            generated["tags"],
+        "tags": generated["tags"],
 
-        "image_prompt":
-            generated["image_prompt"],
+        "image_prompt": generated["image_prompt"],
 
-        "category":
-            news.get("category", ""),
+        "category": news.get("category", ""),
 
-        "priority":
-            news.get("priority", ""),
+        "priority": news.get("priority", ""),
 
-        "score":
-            news.get("total_score", 0),
+        "score": news.get("total_score", 0),
 
-        "source":
-            news.get("source", ""),
+        "source": news.get("source", ""),
 
-        "link":
-            news.get("link", ""),
+        "link": news.get("link", ""),
 
-        "published":
-            news.get("published", ""),
+        "published": news.get("published", ""),
 
-        "created_by":
-            "NovaPress AI",
+        "created_by": "NovaPress AI",
 
-        "status":
-            "ready_for_publish"
+        "status": "ready_for_publish"
+
     }
 
 
-# =================================
+# ---------------------------------
 # Process All Approved News
-# =================================
+# ---------------------------------
 
 def process_articles():
 
@@ -363,14 +340,9 @@ def process_articles():
 
     total = len(news_list)
 
-    print(
-        f"\nProcessing {total} approved news...\n"
-    )
+    print(f"\nProcessing {total} approved news...\n")
 
-    for index, news in enumerate(
-        news_list,
-        start=1
-    ):
+    for index, news in enumerate(news_list, start=1):
 
         print(
             f"[{index}/{total}] "
@@ -393,34 +365,24 @@ def process_articles():
 
             print("✗ Failed")
 
-    print(
-        "\n========== Writer Report =========="
-    )
+    print("\n========== Writer Report ==========")
 
-    print(
-        f"Total News      : {total}"
-    )
+    print(f"Total News      : {total}")
 
-    print(
-        f"Articles Created: {success}"
-    )
+    print(f"Articles Created: {success}")
 
-    print(
-        f"Failed          : {failed}"
-    )
+    print(f"Failed          : {failed}")
 
     return articles
 
 
-# =================================
+# ---------------------------------
 # Main
-# =================================
+# ---------------------------------
 
 def main():
 
-    print(
-        "\n========== NovaPress AI Writer ==========\n"
-    )
+    print("\n========== NovaPress AI Writer ==========\n")
 
     articles = process_articles()
 
@@ -432,26 +394,18 @@ def main():
 
     save_articles(articles)
 
-    print(
-        "\n========== Completed =========="
-    )
+    print("\n========== Completed ==========")
 
-    print(
-        f"Articles Saved : {len(articles)}"
-    )
+    print(f"Articles Saved : {len(articles)}")
 
-    print(
-        f"Output File    : {OUTPUT_FILE}"
-    )
+    print(f"Output File    : {OUTPUT_FILE}")
 
-    print(
-        "\nWriter finished successfully."
-    )
+    print("\nWriter finished successfully.")
 
 
-# =================================
+# ---------------------------------
 # Run
-# =================================
+# ---------------------------------
 
 if __name__ == "__main__":
 
@@ -461,12 +415,8 @@ if __name__ == "__main__":
 
     except KeyboardInterrupt:
 
-        print(
-            "\nWriter stopped by user."
-        )
+        print("\nWriter stopped by user.")
 
     except Exception as e:
 
-        print(
-            f"\nUnexpected Error: {e}"
-        )
+        print(f"\nUnexpected Error: {e}")
