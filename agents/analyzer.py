@@ -4,30 +4,82 @@ from pathlib import Path
 from collections import Counter
 
 
-# -----------------------------
-# Project Paths
-# -----------------------------
-BASE_DIR = Path(__file__).resolve().parent.parent
+# =========================================
+# NovaPress AI - Analyzer
+# =========================================
 
-KEYWORDS_DIR = BASE_DIR / "data" / "keywords"
-OUTPUT_DIR = BASE_DIR / "data" / "output"
+print("\n========== NovaPress AI Analyzer ==========\n")
+
+
+# =========================================
+# Project Paths
+# =========================================
+
+# analyzer.py is inside:
+# NovaPress-AI2/agents/analyzer.py
+
+AGENT_DIR = Path(__file__).resolve().parent
+BASE_DIR = AGENT_DIR.parent
+
+DATA_DIR = BASE_DIR / "data"
+
+OUTPUT_DIR = DATA_DIR / "output"
 
 INPUT_FILE = OUTPUT_DIR / "news_output.json"
+
 OUTPUT_FILE = OUTPUT_DIR / "analyzed_news.json"
 
 
-# -----------------------------
-# Load Keyword Files
-# -----------------------------
+# Support both possible keyword folder names
+KEYWORDS_DIR = DATA_DIR / "keywords"
+
+if not KEYWORDS_DIR.exists():
+
+    ALT_KEYWORDS_DIR = DATA_DIR / "keyword"
+
+    if ALT_KEYWORDS_DIR.exists():
+        KEYWORDS_DIR = ALT_KEYWORDS_DIR
+
+
+print("Project Directory:")
+print(BASE_DIR)
+
+print("\nInput File:")
+print(INPUT_FILE)
+
+print("\nKeyword Directory:")
+print(KEYWORDS_DIR)
+
+
+# =========================================
+# Load Keywords
+# =========================================
+
 def load_keywords():
 
     keyword_db = {}
 
     if not KEYWORDS_DIR.exists():
-        print("Keyword folder not found!")
+
+        print(
+            "\nWARNING: Keyword folder not found!"
+        )
+
         return keyword_db
 
-    for file in KEYWORDS_DIR.glob("*.json"):
+    files = list(
+        KEYWORDS_DIR.glob("*.json")
+    )
+
+    if not files:
+
+        print(
+            "\nWARNING: No keyword JSON files found!"
+        )
+
+        return keyword_db
+
+    for file in files:
 
         try:
 
@@ -39,22 +91,55 @@ def load_keywords():
 
                 data = json.load(f)
 
-            if not isinstance(data, list):
-                print(f"Invalid keyword file: {file.name}")
-                continue
+            # Accept a simple list:
+            # ["cricket", "football"]
 
-            category = file.stem.lower()
+            if isinstance(data, list):
+
+                raw_keywords = data
+
+            # Also accept:
+            # {"keywords": ["cricket", "football"]}
+
+            elif isinstance(data, dict):
+
+                raw_keywords = data.get(
+                    "keywords",
+                    []
+                )
+
+            else:
+
+                print(
+                    f"Invalid keyword file: {file.name}"
+                )
+
+                continue
 
             keywords = []
 
-            for item in data:
+            for item in raw_keywords:
 
-                if isinstance(item, str):
+                if isinstance(
+                    item,
+                    str
+                ):
 
                     keyword = item.strip().lower()
 
                     if keyword:
-                        keywords.append(keyword)
+
+                        keywords.append(
+                            keyword
+                        )
+
+            keywords = list(
+                dict.fromkeys(
+                    keywords
+                )
+            )
+
+            category = file.stem.lower()
 
             keyword_db[category] = keywords
 
@@ -66,25 +151,28 @@ def load_keywords():
         except Exception as e:
 
             print(
-                f"Error loading {file.name}: {e}"
+                f"Error loading "
+                f"{file.name}: {e}"
             )
 
     return keyword_db
 
 
-# -----------------------------
+# =========================================
 # Clean Text
-# -----------------------------
+# =========================================
+
 def clean_text(text):
 
     if not text:
+
         return ""
 
     text = str(text).lower()
 
     # Remove HTML
     text = re.sub(
-        r"<.*?>",
+        r"<[^>]+>",
         " ",
         text
     )
@@ -96,11 +184,12 @@ def clean_text(text):
         text
     )
 
-    # Remove punctuation
+    # Keep Unicode letters and numbers
     text = re.sub(
         r"[^\w\s]",
         " ",
-        text
+        text,
+        flags=re.UNICODE
     )
 
     # Remove extra spaces
@@ -113,22 +202,30 @@ def clean_text(text):
     return text.strip()
 
 
-# -----------------------------
+# =========================================
 # Keyword Matching
-# -----------------------------
-def keyword_matches(text, keywords):
+# =========================================
+
+def keyword_matches(
+    text,
+    keywords
+):
 
     found = []
+
+    if not text:
+
+        return found
 
     for keyword in keywords:
 
         keyword = keyword.strip().lower()
 
         if not keyword:
+
             continue
 
-        # For very short English keywords,
-        # use word boundaries to avoid false matches.
+        # English / number keywords
         if re.fullmatch(
             r"[a-z0-9]+",
             keyword
@@ -145,19 +242,30 @@ def keyword_matches(text, keywords):
                 text
             ):
 
-                found.append(keyword)
+                found.append(
+                    keyword
+                )
 
         else:
 
+            # Bangla / multilingual keywords
             if keyword in text:
-                found.append(keyword)
 
-    return found
+                found.append(
+                    keyword
+                )
+
+    return list(
+        dict.fromkeys(
+            found
+        )
+    )
 
 
-# -----------------------------
+# =========================================
 # Calculate Category Score
-# -----------------------------
+# =========================================
+
 def calculate_category_score(
     title,
     summary,
@@ -180,17 +288,18 @@ def calculate_category_score(
         keywords
     )
 
-    # Remove duplicates
-    title_matches = list(dict.fromkeys(title_matches))
-    summary_matches = list(dict.fromkeys(summary_matches))
-    content_matches = list(dict.fromkeys(content_matches))
-
     # Weighted scoring
-    title_score = len(title_matches) * 3
+    title_score = (
+        len(title_matches) * 3
+    )
 
-    summary_score = len(summary_matches) * 2
+    summary_score = (
+        len(summary_matches) * 2
+    )
 
-    content_score = len(content_matches)
+    content_score = (
+        len(content_matches)
+    )
 
     total_score = (
         title_score
@@ -207,45 +316,61 @@ def calculate_category_score(
     )
 
     return {
+
         "score": total_score,
-        "title_matches": title_matches,
-        "summary_matches": summary_matches,
-        "content_matches": content_matches,
-        "all_matches": all_matches
+
+        "title_matches":
+            title_matches,
+
+        "summary_matches":
+            summary_matches,
+
+        "content_matches":
+            content_matches,
+
+        "all_matches":
+            all_matches
     }
 
 
-# -----------------------------
-# Load Keywords
-# -----------------------------
-KEYWORDS = load_keywords()
+# =========================================
+# Analyze One News Item
+# =========================================
 
-
-# -----------------------------
-# Analyze One News
-# -----------------------------
-def analyze_news(news):
+def analyze_news(
+    news,
+    keyword_db
+):
 
     title = clean_text(
-        news.get("title", "")
+        news.get(
+            "title",
+            ""
+        )
     )
 
     summary = clean_text(
-        news.get("summary", "")
+        news.get(
+            "summary",
+            ""
+        )
     )
 
     content = clean_text(
-        news.get("content", "")
+        news.get(
+            "content",
+            ""
+        )
     )
 
     category_scores = {}
 
-    category_matches = {}
+    category_results = {}
 
-    # -----------------------------
-    # Check Every Category
-    # -----------------------------
-    for category, keywords in KEYWORDS.items():
+    # Check every category
+    for category, keywords in (
+        keyword_db.items()
+    ):
 
         result = calculate_category_score(
             title,
@@ -254,13 +379,18 @@ def analyze_news(news):
             keywords
         )
 
-        category_scores[category] = result["score"]
+        category_scores[category] = (
+            result["score"]
+        )
 
-        category_matches[category] = result
+        category_results[category] = (
+            result
+        )
 
-    # -----------------------------
+    # =====================================
     # Find Best Category
-    # -----------------------------
+    # =====================================
+
     if category_scores:
 
         best_category = max(
@@ -268,11 +398,13 @@ def analyze_news(news):
             key=category_scores.get
         )
 
-        best_result = category_matches[
+        best_result = category_results[
             best_category
         ]
 
-        best_score = best_result["score"]
+        best_score = best_result[
+            "score"
+        ]
 
     else:
 
@@ -281,30 +413,34 @@ def analyze_news(news):
         best_score = 0
 
         best_result = {
+
             "score": 0,
+
             "title_matches": [],
+
             "summary_matches": [],
+
             "content_matches": [],
+
             "all_matches": []
         }
 
-    # -----------------------------
+    # =====================================
     # Approval Logic
-    # -----------------------------
+    # =====================================
+
     match_count = len(
-        best_result["all_matches"]
+        best_result[
+            "all_matches"
+        ]
     )
 
-    # A news item is approved when:
-    # 1. At least 2 relevant keywords are found
-    # OR
-    # 2. One strong title keyword is found
-    #
-    # This prevents the old problem where
-    # almost everything was rejected.
-
     strong_title_match = (
-        len(best_result["title_matches"]) >= 1
+        len(
+            best_result[
+                "title_matches"
+            ]
+        ) >= 1
     )
 
     approved = (
@@ -312,9 +448,10 @@ def analyze_news(news):
         or strong_title_match
     )
 
-    # -----------------------------
+    # =====================================
     # Priority
-    # -----------------------------
+    # =====================================
+
     if best_score >= 12:
 
         priority = "HIGH"
@@ -327,83 +464,99 @@ def analyze_news(news):
 
         priority = "LOW"
 
-    # -----------------------------
-    # Final Result
-    # -----------------------------
-    analyzed = {
+    # =====================================
+    # Final Analyzed News
+    # =====================================
 
-        "title": news.get(
-            "title",
-            ""
-        ),
+    return {
 
-        "link": news.get(
-            "link",
-            ""
-        ),
+        "title":
+            news.get(
+                "title",
+                ""
+            ),
 
-        "published": news.get(
-            "published",
-            ""
-        ),
+        "link":
+            news.get(
+                "link",
+                ""
+            ),
 
-        "source": news.get(
-            "source",
-            ""
-        ),
+        "published":
+            news.get(
+                "published",
+                ""
+            ),
 
-        "summary": news.get(
-            "summary",
-            ""
-        ),
+        "source":
+            news.get(
+                "source",
+                ""
+            ),
 
-        "content": news.get(
-            "content",
-            ""
-        ),
+        "summary":
+            news.get(
+                "summary",
+                ""
+            ),
 
-        "category": best_category,
+        "content":
+            news.get(
+                "content",
+                ""
+            ),
 
-        "category_score": best_score,
+        "category":
+            best_category,
 
-        "total_score": best_score,
+        "category_score":
+            best_score,
 
-        "priority": priority,
+        "total_score":
+            best_score,
 
-        "approved": approved,
+        "priority":
+            priority,
 
-        "matched_keywords": best_result[
-            "all_matches"
-        ],
+        "approved":
+            approved,
 
-        "title_matches": best_result[
-            "title_matches"
-        ],
+        "matched_keywords":
+            best_result[
+                "all_matches"
+            ],
 
-        "summary_matches": best_result[
-            "summary_matches"
-        ],
+        "title_matches":
+            best_result[
+                "title_matches"
+            ],
 
-        "content_matches": best_result[
-            "content_matches"
-        ]
+        "summary_matches":
+            best_result[
+                "summary_matches"
+            ],
+
+        "content_matches":
+            best_result[
+                "content_matches"
+            ]
     }
 
-    return analyzed
 
+# =========================================
+# Main Analyzer
+# =========================================
 
-# -----------------------------
-# Analyze All News
-# -----------------------------
 def analyze_all_news():
 
-    # -----------------------------
-    # Check Input File
-    # -----------------------------
+    # =====================================
+    # Check Input
+    # =====================================
+
     if not INPUT_FILE.exists():
 
         print(
-            "Input file not found:"
+            "\nERROR: Input file not found!"
         )
 
         print(
@@ -412,9 +565,10 @@ def analyze_all_news():
 
         return
 
-    # -----------------------------
-    # Read News
-    # -----------------------------
+    # =====================================
+    # Load News
+    # =====================================
+
     try:
 
         with open(
@@ -428,29 +582,47 @@ def analyze_all_news():
     except Exception as e:
 
         print(
-            "Error reading input:",
-            e
+            f"\nERROR reading news file: {e}"
         )
 
         return
 
-    # -----------------------------
-    # Validate
-    # -----------------------------
+    # =====================================
+    # Validate News
+    # =====================================
+
     if not isinstance(
         news_list,
         list
     ):
 
         print(
-            "Invalid news format."
+            "\nERROR: news_output.json "
+            "must contain a JSON list."
         )
 
         return
 
-    # -----------------------------
-    # Counters
-    # -----------------------------
+    print(
+        f"\nCollected News : "
+        f"{len(news_list)}"
+    )
+
+    # =====================================
+    # Load Keywords
+    # =====================================
+
+    keyword_db = load_keywords()
+
+    print(
+        f"\nCategories Loaded : "
+        f"{len(keyword_db)}"
+    )
+
+    # =====================================
+    # Analyze
+    # =====================================
+
     analyzed_news = []
 
     approved_count = 0
@@ -459,10 +631,14 @@ def analyze_all_news():
 
     category_counter = Counter()
 
-    # -----------------------------
-    # Analyze News
-    # -----------------------------
-    for news in news_list:
+    print(
+        "\nAnalyzing news...\n"
+    )
+
+    for index, news in enumerate(
+        news_list,
+        start=1
+    ):
 
         if not isinstance(
             news,
@@ -472,7 +648,8 @@ def analyze_all_news():
             continue
 
         result = analyze_news(
-            news
+            news,
+            keyword_db
         )
 
         analyzed_news.append(
@@ -491,17 +668,22 @@ def analyze_all_news():
 
             rejected_count += 1
 
-    # -----------------------------
-    # Create Output Directory
-    # -----------------------------
+        print(
+            f"[{index}/{len(news_list)}] "
+            f"{result['category']} | "
+            f"Score: {result['total_score']} | "
+            f"Approved: {result['approved']}"
+        )
+
+    # =====================================
+    # Save Output
+    # =====================================
+
     OUTPUT_DIR.mkdir(
         parents=True,
         exist_ok=True
     )
 
-    # -----------------------------
-    # Save Result
-    # -----------------------------
     try:
 
         with open(
@@ -520,33 +702,36 @@ def analyze_all_news():
     except Exception as e:
 
         print(
-            "Error saving output:",
-            e
+            f"\nERROR saving output: {e}"
         )
 
         return
 
-    # -----------------------------
-    # Analyzer Report
-    # -----------------------------
+    # =====================================
+    # Report
+    # =====================================
+
     print(
         "\n========== Analyzer Report =========="
     )
 
     print(
-        f"Total News      : {len(analyzed_news)}"
+        f"Total News      : "
+        f"{len(analyzed_news)}"
     )
 
     print(
-        f"Approved News   : {approved_count}"
+        f"Approved News   : "
+        f"{approved_count}"
     )
 
     print(
-        f"Rejected News   : {rejected_count}"
+        f"Rejected News   : "
+        f"{rejected_count}"
     )
 
     print(
-        "\nCategory Summary"
+        "\nCategory Summary:"
     )
 
     for category, count in (
@@ -557,29 +742,49 @@ def analyze_all_news():
             f"- {category}: {count}"
         )
 
-    # -----------------------------
-    # Approval Percentage
-    # -----------------------------
-    if len(analyzed_news) > 0:
+    if analyzed_news:
 
-        percentage = (
+        approval_rate = (
             approved_count
             / len(analyzed_news)
         ) * 100
 
         print(
             f"\nApproval Rate   : "
-            f"{percentage:.1f}%"
+            f"{approval_rate:.1f}%"
         )
 
     print(
-        f"\nSaved File: {OUTPUT_FILE}"
+        "\nSaved File:"
+    )
+
+    print(
+        OUTPUT_FILE
+    )
+
+    print(
+        "\nAnalyzer finished successfully."
     )
 
 
-# -----------------------------
-# Main
-# -----------------------------
+# =========================================
+# Run
+# =========================================
+
 if __name__ == "__main__":
 
-    analyze_all_news()
+    try:
+
+        analyze_all_news()
+
+    except KeyboardInterrupt:
+
+        print(
+            "\nAnalyzer stopped by user."
+        )
+
+    except Exception as e:
+
+        print(
+            f"\nUnexpected Error: {e}"
+        )
