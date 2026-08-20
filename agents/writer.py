@@ -35,7 +35,7 @@ if PROJECT_DIR is None:
 
 OUTPUT_DIR = PROJECT_DIR / "data" / "output"
 
-INPUT_FILE = OUTPUT_DIR / "analyzed_news.json"
+INPUT_FILE = OUTPUT_DIR / "news_output.json"
 
 OUTPUT_FILE = OUTPUT_DIR / "articles.json"
 
